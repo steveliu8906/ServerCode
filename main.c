@@ -1,44 +1,14 @@
 #include "./include/res.h"
 
-#define SERV_PORT 5002
-//#define SERV_IP_ADDR "192.168.7.139"
-#define QUIT_STR "quit"
 
-#define PASSWORD "linux"
-#define TV_STRING "watch_tv"
-
-
-#define CON_RETURN_PIN "allow_ack"  // succes return string
-#define CON_RETURN_PIN_ERROR "no_allow_ack"
-
-#define USER_IDENTIFY_CLIENT_STR "identity_client_id"
-#define USER_IDENTIFY_SERVER_STR "identity_server_id"
-
-
-#define  BUFSIZE 4096
-#define ON  0x11
-#define OFF  0x22
-#define  NORMAL 0xBB
-#define  FAULT    0xAA
-
-#define  READCMD 0x40
-#define  CTRLCMD 0x41
-#define  RETURNSTATUS 0x42
-#define  CONNECT 0x43
-#define USER_CLIENT_TYPE 0xA1
-#define USER_SERVER_TYPE 0xA2
-
-#if 1
-#define dprintf(fmt,args...) printf("%s:"fmt,__func__,##args)
-#else
-#define dprintf(fmt,args...)
-#endif
 
 //#define  sql_no_back(mysql,str)  sqlite3_exec(mysql,str,NULL,NULL,NULL);
 
 
 struct user_info client_user_info_head;
 struct user_info server_user_info_head;
+struct password_data passwd_list_head;
+
 int max_fd = -1;
 fd_set event_set;	
 char usernamebuff[NAME_BUFSIZE];
@@ -82,6 +52,21 @@ void get_str_from_buf(char id[],char buf[],char passwd_buf[])
 } 
 
 
+int info_is_in_vaild_list(char *info)
+{
+
+	struct list_head *pos = NULL,*q = NULL;
+	struct password_data *temp = NULL;
+
+	list_for_each_safe(pos,q,&passwd_list_head.list ){
+	temp = list_entry(pos,struct password_data,list);
+		if(!strcmp(info,temp->mac_data)){
+			return 0;
+		}
+	}
+	return -1;
+}
+
 enum_user_type  user_identify(int fd)
 {
 	char buf[BUFSIZE];
@@ -108,8 +93,8 @@ enum_user_type  user_identify(int fd)
 		server_type = get_ctrl_obj_tpye(buf);
 		return SERVER_USER;
 	}else if(ret_user == USER_CLIENT_TYPE){
-		get_str_from_buf("pass_word",buf,dst_buf);		
-		if(!strcmp(dst_buf,PASSWORD)){
+		get_str_from_buf(PASSWORD_KEY,buf,dst_buf);		
+		if(!info_is_in_vaild_list(dst_buf)){
 			memset(usernamebuff,0,NAME_BUFSIZE);
 			get_str_from_buf("user_name",buf,usernamebuff);
 			return CLIENT_USER;
@@ -143,7 +128,7 @@ void add_user_to_list(int fd)
 			new_user->fd = fd;
 			new_user->user_type = ret_type;
 			if(ret_type == CLIENT_USER){
-				new_user->ctrl_cmd_sending =false;
+				new_user->ctrl_cmd_sending_flag = 0;
 				send(fd,CON_RETURN_PIN,strlen(CON_RETURN_PIN),0);//password is valid add to list
 				list_add_tail(&new_user->list,&client_user_info_head.list);
 				strcpy(new_user->user_name,usernamebuff);
@@ -185,7 +170,7 @@ void watch_tv_cmd(char *buf)
 void del_client_event(struct user_info *user_info,char r_buf[])
 {
 	ctrl_object_type object_ret = get_value_from_read_buf("ctrl_object",r_buf);
-	user_info->ctrl_cmd_sending = true;
+	user_info->ctrl_cmd_sending_flag = 1;
 	switch(object_ret){
 		case LIGHT:
 			led_status_control(r_buf);
@@ -200,12 +185,14 @@ void del_client_event(struct user_info *user_info,char r_buf[])
 
 void send_ack_to_client(struct user_info *user_info)
 {
+	 dprintf("--->\n");
 	struct list_head *pos = NULL,*q = NULL;
 	struct user_info *temp = NULL;
-	list_for_each_safe(pos,q,&server_user_info_head.list){
+	list_for_each_safe(pos,q,&client_user_info_head.list){
 		temp = list_entry(pos,struct user_info,list);
-		if(temp->ctrl_cmd_sending){
+		if(temp->ctrl_cmd_sending_flag){		
 			send(temp->fd,"cmd_linux_ack",strlen("cmd_linux_ack"),0);
+			dprintf("sucess!\n");
 		}
 	}
 	
@@ -231,13 +218,14 @@ void handle_event(struct user_info *user_info)
 	}
 	
 	dprintf(":---->%s\n",buf);
+	dprintf("user_tpye = %d\n",user_info->user_type);
 	
 	if(user_info->user_type == CLIENT_USER){
 		dprintf("--%s req\n",user_info->user_name);
 		del_client_event(user_info,buf);
 	}else if(user_info->user_type == SERVER_USER){
 	    //fix server handler
-	    if(strcmp(buf,"cmd_linux_ack",strlen("cmd_linux_ack") == 0)
+	    if(strncmp(buf,"cmd_linux_ack",strlen("cmd_linux_ack")) == 0)
 			send_ack_to_client(user_info);
 	}
 }
@@ -289,6 +277,19 @@ void for_each_server_client_fd()
 
 }
 
+
+
+void passwd_list_init()
+{
+	pwd_data pdata= NULL;
+
+	pdata = (pwd_data)malloc(sizeof(struct password_data));
+	if(pdata){
+		strcpy(pdata->mac_data,"54:25:ea:dc:ff:1c");
+		list_add_tail(&pdata->list,&passwd_list_head.list);
+	}
+}
+
 int main(void)
 {
 	int listen_fd = -1, new_fd = -1;
@@ -300,6 +301,9 @@ int main(void)
 
 	INIT_LIST_HEAD(&client_user_info_head.list);
 	INIT_LIST_HEAD(&server_user_info_head.list);
+	INIT_LIST_HEAD(&passwd_list_head.list);
+	passwd_list_init();
+	
 	//INIT_LIST_HEAD(&json_head.list);
 	
 	if( (listen_fd = socket(AF_INET, SOCK_STREAM, 0))< 0) {

@@ -13,7 +13,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-//#include "json.h"
+//#include "json/json.h"
 #include </usr/local/include/json/json.h>
 
 #define NAME_BUFSIZE 32
@@ -55,6 +55,7 @@ typedef struct tv_info{
 }*ptv_info;
 
 typedef struct user_info{
+	//bool ctrl_cmd_sending;
 	struct led_info *p_led_info;
 	struct water_heart  *water_heart;
 	struct list_head  list;
@@ -63,8 +64,51 @@ typedef struct user_info{
 	int user_type;//client or server
 	char user_name[NAME_BUFSIZE];
 	int ctrl_obj_type;
-	bool ctrl_cmd_sending;
+	int ctrl_cmd_sending_flag;
 }*p_user_info;
+
+typedef struct password_data{
+	struct list_head  list;
+	char mac_data[NAME_BUFSIZE];
+	char cell_phone_number[11];
+}*pwd_data;
+
+
+#define SERV_PORT  6735
+//#define SERV_IP_ADDR "192.168.7.139"
+#define QUIT_STR "quit"
+
+#define PASSWORD "linux"
+#define TV_STRING "watch_tv"
+
+#define PASSWORD_KEY "MacAdress"
+
+
+#define CON_RETURN_PIN "allow_ack"  // succes return string
+#define CON_RETURN_PIN_ERROR "no_allow_ack"
+
+#define USER_IDENTIFY_CLIENT_STR "identity_client_id"
+#define USER_IDENTIFY_SERVER_STR "identity_server_id"
+
+
+#define  BUFSIZE 4096
+#define ON  0x11
+#define OFF  0x22
+#define  NORMAL 0xBB
+#define  FAULT    0xAA
+
+#define  READCMD 0x40
+#define  CTRLCMD 0x41
+#define  RETURNSTATUS 0x42
+#define  CONNECT 0x43
+#define USER_CLIENT_TYPE 0xA1
+#define USER_SERVER_TYPE 0xA2
+
+#if 1
+#define dprintf(fmt,args...) printf("%s:"fmt,__func__,##args)
+#else
+#define dprintf(fmt,args...)
+#endif
 
 
 #endif
