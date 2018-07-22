@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-//#include<sqlite3.h>
+#include <sqlite3.h>
 #include <sys/types.h>
 #include <net/if.h>
 #include <netinet/in.h>
@@ -26,10 +26,11 @@ typedef enum enum_user_type{
 
 
 typedef enum ctrl_object_type{
-	 LIGHT=0xA00,
-	 WATER_HEAT,
-	 WATCH_TV,
-	 COMPUTER 
+	 USER_MANAGER=0x51,
+	 DOOR,
+	 COMPUTE,
+	 LIGHT,
+	 WATCH_TV
 }ctrl_object_type;
 
 typedef enum led_statues_type{

@@ -12,7 +12,7 @@ struct password_data passwd_list_head;
 int max_fd = -1;
 fd_set event_set;	
 char usernamebuff[NAME_BUFSIZE];
-int server_type = -1;
+int device_id = -1;
 void socket_init(struct sockaddr_in * pcin)
 {
 	pcin->sin_family = AF_INET;
@@ -38,7 +38,7 @@ int  get_user_type_buf(char buf[])
 
 int get_ctrl_obj_tpye(char *buf)
 {
-	return get_value_from_read_buf("control_obj_type",buf);
+	return get_value_from_read_buf("device_id",buf);
 }
 	
 void get_str_from_buf(char id[],char buf[],char passwd_buf[])
@@ -90,7 +90,7 @@ enum_user_type  user_identify(int fd)
 	}
 	
 	if(ret_user == USER_SERVER_TYPE){
-		server_type = get_ctrl_obj_tpye(buf);
+		device_id = get_ctrl_obj_tpye(buf);
 		return SERVER_USER;
 	}else if(ret_user == USER_CLIENT_TYPE){
 		get_str_from_buf(PASSWORD_KEY,buf,dst_buf);		
@@ -134,7 +134,7 @@ void add_user_to_list(int fd)
 				strcpy(new_user->user_name,usernamebuff);
 			}else if (ret_type == SERVER_USER){
 				list_add_tail(&new_user->list,&server_user_info_head.list);
-				new_user->ctrl_obj_type = server_type;
+				new_user->ctrl_obj_type = device_id;
 			}
 			printf("new devices connect........!\n");
 			/*---------------------------*/
@@ -153,16 +153,18 @@ void led_status_control(char *buf)
 	//led_locationt led_status = 
 }
 
-void watch_tv_cmd(char *buf)
+void  send_cmd_to_object(const char *buf,ctrl_object_type obj_type)
 {
 	//int ir_cmd = get_value_from_read_buf("tv_control_cmd",buf);
 	//dprintf("watch_tv_cmd is :%d\n",ir_cmd);
+
+	
 	struct list_head *pos = NULL,*q = NULL;
 	struct user_info *temp = NULL;
 	list_for_each_safe(pos,q,&server_user_info_head.list){
 		temp = list_entry(pos,struct user_info,list);
-		if(temp->ctrl_obj_type == WATCH_TV){
-			dprintf("send msg start...\n");
+		if(temp->ctrl_obj_type == obj_type){
+			dprintf("send power on  compute msg...\n");
 			send(temp->fd,buf,strlen(buf),0);
 		}
 	}
@@ -171,16 +173,8 @@ void del_client_event(struct user_info *user_info,char r_buf[])
 {
 	ctrl_object_type object_ret = get_value_from_read_buf("ctrl_object",r_buf);
 	user_info->ctrl_cmd_sending_flag = 1;
-	switch(object_ret){
-		case LIGHT:
-			led_status_control(r_buf);
-			break;
-		case WATCH_TV:
-			watch_tv_cmd(r_buf);
-			break;
-		default:
-			break;
-	}
+	send_cmd_to_object(r_buf,object_ret);
+	
 }	
 
 void send_ack_to_client(struct user_info *user_info)
